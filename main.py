@@ -11,7 +11,7 @@ import re
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "human_refer"  # টেলিগ্রাম চ্যানেল ইউজারনেম (ব্যাগ ছাড়া)
+CHANNEL_USERNAME = "SL_TooL_HuB"  # টেলিগ্রাম চ্যানেল ইউজারনেম (ব্যাগ ছাড়া)
 
 user_state = {}  # user_id: 'youtube' / 'tiktok' / 'facebook'
 
@@ -216,4 +216,5 @@ if __name__ == '__main__':
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
     print("🚀 Bot is running...")
+
     app.run_polling()
