@@ -1,3 +1,6 @@
+from keep_alive import keep_alive
+
+keep_alive()
 import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -98,3 +101,4 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), download_video))
     print("Bot is running...")
     app.run_polling()
+
