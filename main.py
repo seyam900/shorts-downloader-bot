@@ -9,10 +9,9 @@ from telegram.ext import (
     ContextTypes, CallbackQueryHandler
 )
 import yt_dlp
-import requests
 
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
-CHANNEL_USERNAME = "SL_TooL_HuB"  # Without @
+BOT_TOKEN = os.environ.get("BOT_TOKEN") or "YOUR_BOT_TOKEN"
+CHANNEL_USERNAME = "SL_TooL_HuB"  # without @
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,14 +22,25 @@ platforms = {
     "tt": "TikTok Shorts 🎵"
 }
 
+# ✅ Make downloads folder if missing
+if not os.path.exists("downloads"):
+    os.makedirs("downloads")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    chat_member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user.id)
-    if chat_member.status not in ["member", "administrator", "creator"]:
-        await update.message.reply_text(
-            "🚫 To use this bot, please join our channel first!",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME}")]])
-        )
+    try:
+        chat_member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user.id)
+        if chat_member.status not in ["member", "administrator", "creator"]:
+            await update.message.reply_text(
+                "🚫 Join our channel to use this bot!",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔗 Join", url=f"https://t.me/{CHANNEL_USERNAME}")]]
+                )
+            )
+            return
+    except Exception as e:
+        logger.error(f"Channel check error: {e}")
+        await update.message.reply_text("⚠️ Could not verify channel membership.")
         return
 
     keyboard = [
@@ -39,7 +49,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(platforms["tt"], callback_data="tt")]
     ]
     await update.message.reply_text(
-        "🎉 Welcome! Select a platform to download Shorts video:",
+        "🎉 Welcome! Choose a platform to download Shorts video:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -52,20 +62,27 @@ async def platform_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    chat_member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user.id)
-    if chat_member.status not in ["member", "administrator", "creator"]:
-        await update.message.reply_text(
-            "🚫 Please join our channel to use this bot!",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME}")]])
-        )
+    try:
+        chat_member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user.id)
+        if chat_member.status not in ["member", "administrator", "creator"]:
+            await update.message.reply_text(
+                "🚫 Join our channel first!",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔗 Join", url=f"https://t.me/{CHANNEL_USERNAME}")]]
+                )
+            )
+            return
+    except:
+        await update.message.reply_text("⚠️ Error verifying channel membership.")
         return
 
     url = update.message.text.strip()
     platform = context.user_data.get("platform")
-    if not platform or platform not in ["yt", "fb", "tt"]:
-        await update.message.reply_text("⚠️ Please select a platform first by sending /start")
+    if not platform or platform not in platforms:
+        await update.message.reply_text("⚠️ Please select a platform first using /start.")
         return
 
+    # Basic link validation
     if platform == "yt" and "youtu" not in url:
         await update.message.reply_text("❌ Please send a valid YouTube Shorts link.")
         return
@@ -76,29 +93,34 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Please send a valid TikTok Shorts link.")
         return
 
-    await update.message.reply_text("⏳ Downloading your video... Please wait!")
+    await update.message.reply_text("⏳ Downloading... Please wait...")
 
     try:
         ydl_opts = {
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'format': 'best[ext=mp4]',
-            'quiet': True
+            'quiet': True,
         }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
-            with open(file_path, 'rb') as video:
-                await update.message.reply_video(video=video, caption="✅ Video downloaded successfully!\nThanks for using our premium bot 💎")
-            os.remove(file_path)
+
+        with open(file_path, 'rb') as f:
+            await update.message.reply_video(
+                video=f,
+                caption="✅ Downloaded successfully!\nThanks for using our bot 💎"
+            )
+        os.remove(file_path)
+
     except Exception as e:
-        logger.error(f"Download failed: {e}")
-        await update.message.reply_text("❌ Failed to download video. Please check the link and try again.")
+        logger.error(f"Error downloading: {e}")
+        await update.message.reply_text("❌ Could not download the video. Please try again.")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(platform_selected))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), download_video))
-    print("Bot is running...")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
+    print("Bot running...")
     app.run_polling()
-
